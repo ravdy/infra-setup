@@ -40,9 +40,6 @@ running the terraform-env directory, and look it up in Datadog.
         app_key: <DD_APP_KEY>
         api_key: <DD_API_KEY>
         aws_integration_external_id: <DD_INTEGRATION_ID>
-    <ENVIRONMENT>/roach/ssl_cert
-        This is the CA for Cockroach; it is provided with the cluster, and is
-        the same for all clusters.
 
 And in the appropriate region for each segment:
 
