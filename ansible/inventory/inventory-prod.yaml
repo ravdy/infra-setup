@@ -1,0 +1,5 @@
+---
+controllers:
+  hosts:
+    controller01:
+      ansible_host: controller-prod.internal

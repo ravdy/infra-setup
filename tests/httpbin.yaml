@@ -1,0 +1,112 @@
+---
+# Source: httpbin/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kgi-httpbin
+  labels:
+    helm.sh/chart: httpbin-0.1.1
+    app.kubernetes.io/name: httpbin
+    app.kubernetes.io/instance: kgi
+    app.kubernetes.io/version: "v2.3.0"
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: httpbin/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: kgi-httpbin
+  labels:
+    helm.sh/chart: httpbin-0.1.1
+    app.kubernetes.io/name: httpbin
+    app.kubernetes.io/instance: kgi
+    app.kubernetes.io/version: "v2.3.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: httpbin
+    app.kubernetes.io/instance: kgi
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kgi-httpbin
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: "httpbin.commons-preprod.env.edbence.com"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kgi-httpbin
+                port:
+                  number: 80
+    - host: "httpbin.commons-prod.env.edbence.com"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kgi-httpbin
+                port:
+                  number: 80
+---
+# Source: httpbin/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kgi-httpbin
+  labels:
+    helm.sh/chart: httpbin-0.1.1
+    app.kubernetes.io/name: httpbin
+    app.kubernetes.io/instance: kgi
+    app.kubernetes.io/version: "v2.3.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: httpbin
+      app.kubernetes.io/instance: kgi
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: httpbin
+        app.kubernetes.io/instance: kgi
+    spec:
+      serviceAccountName: kgi-httpbin
+      securityContext:
+        {}
+      containers:
+        - name: httpbin
+          securityContext:
+            {}
+          image: "mccutchen/go-httpbin:v2.3.0"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /status/200
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /status/200
+              port: http
+          resources:
+            {}
+

@@ -1,0 +1,17 @@
+plugin: aws_ec2
+regions:
+  - us-west-2
+  - us-east-1
+#filters:
+#  tag:Name: tester
+
+keyed_groups:
+  - key: tags.Name
+    prefix: Name_
+    separator: ""
+  - key: tags.Purpose
+    prefix: Purpose_
+    separator: ""
+  - key: tags.Logging
+    prefix: Logging_
+    separator: ""

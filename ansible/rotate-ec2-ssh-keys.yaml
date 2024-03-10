@@ -1,0 +1,60 @@
+---
+- name: "creates new SSH keys for EC2 and stores them in Secrets Manager"
+  hosts: localhost
+  connection: local
+
+  vars:
+    segments:
+      - name: east
+        region: us-east-1
+      - name: west
+        region: us-west-2
+
+  tasks:
+
+     - name: "generate ec2 key pair"
+       openssh_keypair:
+         path: "../.config/id_ssh_rsa_xpansiv-{{env}}"
+         size: 4096
+ 
+     - name: "read keypair"
+       set_fact:
+         id_ssh_rsa_private: "{{ lookup('file', '../.config/id_ssh_rsa_xpansiv-' + env ) }}"
+         id_ssh_rsa_pub: "{{ lookup('file', '../.config/id_ssh_rsa_xpansiv-' + env + '.pub' ) }}"
+ 
+     - name: 'put ec2 key pair to AWS Secrets Manager'
+       community.aws.aws_secret:
+         name: "{{env}}/infra/ec2keypair"
+         state: present
+         secret_type: 'string'
+         secret: '{ "id_ssh_rsa_private": "{{id_ssh_rsa_private}}",  "id_ssh_rsa_pub": "{{id_ssh_rsa_pub}}"  }'
+ 
+     - name: "generate key pair for controller"
+       openssh_keypair:
+         path: "../.config/id_ssh_rsa_controller-{{env}}"
+         size: 4096
+       tags: [ 'controller' ]
+ 
+     - name: "read controller keypair"
+       set_fact:
+         id_ssh_rsa_controller_private: "{{ lookup('file', '../.config/id_ssh_rsa_controller-' + env ) }}"
+         id_ssh_rsa_controller_pub: "{{ lookup('file', '../.config/id_ssh_rsa_controller-' + env + '.pub' ) }}"
+       tags: [ 'controller' ]
+ 
+     - name: 'put controller key pair to AWS Secrets Manager'
+       community.aws.aws_secret:
+         name: "{{env}}/infra/controller-keypair"
+         state: present
+         secret_type: 'string'
+         secret: '{ "id_ssh_rsa_private": "{{id_ssh_rsa_controller_private}}",  "id_ssh_rsa_pub": "{{id_ssh_rsa_controller_pub}}"  }'
+       tags: [ 'controller' ]
+ 
+ 
+     - name: "register ec2 keypair in regions"
+       amazon.aws.ec2_key:
+         name: "xpansiv-{{env}}"
+         region: "{{segment.region}}"
+         key_material: "{{ id_ssh_rsa_pub }}"
+       loop: "{{segments}}"
+       loop_control:
+         loop_var: segment

@@ -1,0 +1,54 @@
+---
+- name: "initializes environment resources before terraform can take over"
+  hosts: localhost
+  connection: local
+
+  vars:
+    segments:
+      - name: east
+        region: us-east-1
+      - name: west
+        region: us-west-2
+
+  tasks:
+    - name: "Ensure state store s3 bucket for ENVIRONMENT state"
+      amazon.aws.s3_bucket:
+        name: "xpansiv-{{env}}-terraform-infra-state"
+        region: "us-east-1"
+        versioning: true
+        state: present
+        encryption: "aws:kms"
+        public_access:
+          block_public_acls: true
+          ignore_public_acls: true
+          block_public_policy: true
+          restrict_public_buckets: true
+
+    - name: "Ensure segment specific s3 buckets for state storage"
+      amazon.aws.s3_bucket:
+        name: "xpansiv-{{env}}-{{segment.name}}-terraform-infra-state"
+        region: "{{segment.region}}"
+        versioning: true
+        state: present
+        encryption: "aws:kms"
+        public_access:
+          block_public_acls: true
+          ignore_public_acls: true
+          block_public_policy: true
+          restrict_public_buckets: true
+      loop: "{{segments}}"
+      loop_control:
+        loop_var: segment
+
+    - name: "Ensure segment specific Dynamodb table for lock management"
+      community.aws.dynamodb_table:
+        name: "terraform-up-and-running-locks"
+        region: "{{segment.region}}"
+        state: present
+        hash_key_name: "LockID"
+        hash_key_type: STRING
+        read_capacity: 2
+        write_capacity: 2
+      loop: "{{segments}}"
+      loop_control:
+        loop_var: segment

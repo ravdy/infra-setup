@@ -1,0 +1,8 @@
+*.iml
+.idea/
+.terraform/
+.terraform.lock.hcl
+.secrets/
+.config/
+terraform-modules/edbence-infrastructure/**
+

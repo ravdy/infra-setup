@@ -1,0 +1,280 @@
+# Pipeline rules control when jobs are included in a pipeline
+workflow:
+  name: "${ENVIRONMENT} ${OPERATION} ${SEGMENT}-${MODULE}"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web" && $OPERATION == "terraform"
+      variables:
+        TERRAFORM: "yes"
+    - if: $CI_PIPELINE_SOURCE == "web" && $OPERATION == "scale"
+      variables:
+        SCALE: "yes"
+    - if: $CI_PIPELINE_SOURCE == "web" && $OPERATION == "ansible"
+      variables:
+        ANSIBLE: "yes"
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: always
+    - if: $CI_COMMIT_MESSAGE =~ /^\+\+Scaling.+/
+
+
+variables:
+  OPERATION:
+    value: "terraform"
+    description: "select operation to perform"
+    options:
+      - "terraform"
+      - "ansible"
+      - "scale"
+
+  ENVIRONMENT:
+    value: "commons-preprod"
+    description: "target environment for deployment"
+    options:
+      - commons-preprod
+      - commons-prod
+
+  SEGMENT:
+    value: "east"
+    description: "target segment"
+    options:
+      - "east"
+      - "west"
+
+  MODULE:
+    value: "base"
+    description: "target module"
+    options:
+      - "env"
+      - "base"
+      - "ext"
+  
+  PLAYBOOK:
+    value: "init-for-terraform.yaml"
+    description: "if ansible operation is selected, else ignored"
+    options:
+      - "rotate-ec2-ssh-keys.yaml"
+      - "init-for-terraform.yaml"
+
+  TF_ADDRESS: ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/main
+  TF_IN_AUTOMATION: "true"
+
+default:
+  image:
+    # sane default packages installed and functional AWS CLI environment.
+    name: edbence.jfrog.io/default-docker-virtual/edbence-infra-tools:0.3.105
+
+  tags:
+    - commons
+
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-${MODULE}
+    paths:
+      - ${TF_ROOT}/.terraform
+
+  before_script:
+    - source ./scripts/gitlab-before-script.sh
+    - export AWS_REGION=$(aws_region ${SEGMENT})
+    - export AWS_DEFAULT_REGION=$(aws_region ${SEGMENT})
+    - export TF_MODULE=$(tf_module $MODULE $SEGMENT)
+    - export TF_ROOT=${CI_PROJECT_DIR}/terraform/${TF_MODULE}
+    - source <(/app/edbence_infra/common/aws.assume.sh ${ENVIRONMENT} cicd)
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com".insteadOf ssh://git@gitlab.com
+    - cd ${CI_PROJECT_DIR}
+
+
+stages:
+  - merge_request
+  - terraform
+  - ansible
+  - scale
+
+
+# Terraform
+.plan:
+  script:
+    - ./run-terraform.sh -L -e ${ENVIRONMENT} -s ${SEGMENT} -m ${TF_MODULE} init -reconfigure -input=false
+    - ./run-terraform.sh -L -e ${ENVIRONMENT} -s ${SEGMENT} -m ${TF_MODULE} plan -input=false -out=plan.cache
+    - ./run-terraform.sh -L -e ${ENVIRONMENT} -s ${SEGMENT} -m ${TF_MODULE} show --json plan.cache | convert_report > $TF_ROOT/plan.json
+  tags:
+    - commons
+  artifacts:
+    name: plan-${MODULE}
+    paths:
+      - ${TF_ROOT}/plan.cache
+    reports:
+      terraform: ${TF_ROOT}/plan.json
+  when: manual
+
+
+.apply:
+  script:
+    - ./run-terraform.sh -L -e ${ENVIRONMENT} -s ${SEGMENT} -m ${TF_MODULE} init -reconfigure -input=false
+    - ./run-terraform.sh -L -e ${ENVIRONMENT} -s ${SEGMENT} -m ${TF_MODULE} apply -input=false --auto-approve
+  when: manual
+  tags:
+    - commons
+  allow_failure: false
+
+
+###
+# Scale
+###
+
+scale:
+  stage: scale
+  script:
+    - ./scripts/ci/scale_node.sh ${ENVIRONMENT} ${SEGMENT}
+  rules:
+    - if: $SCALE == "yes"
+
+###
+# Terraform
+###
+
+terraform-plan:
+  extends: .plan
+  stage: terraform
+  environment:
+    deployment_tier: development
+    name: $ENVIRONMENT-${SEGMENT}-${MODULE}
+    action: prepare
+  rules:
+    - if: $TERRAFORM == "yes"
+      when: manual
+
+terraform-apply:
+  extends: .apply
+  stage: terraform
+  dependencies:
+    - terraform-plan
+  needs:
+    - terraform-plan
+  when: manual
+  rules:
+    - if: $TERRAFORM == "yes"
+      when: manual
+
+###
+# Ansible
+###
+
+run-playbook:
+  stage: ansible
+  environment:
+    deployment_tier: development
+    name: $ENVIRONMENT-${SEGMENT}
+    action: prepare
+  script:
+    - export ENVIRONMENT=${ENVIRONMENT}
+    - export SEGMENT=${SEGMENT}
+    - ./run-playbook.sh ansible/${PLAYBOOK}
+  rules:
+    - if: $ANSIBLE == "yes"
+      when: manual
+
+###
+# Merge Request plans
+###
+
+preprod-east-base-plan:
+  extends: .plan
+  stage: merge_request
+  environment:
+    deployment_tier: development
+    name: commons-preprod-east-base
+    action: prepare
+  variables:
+    ENVIRONMENT: "commons-preprod"
+    MODULE: "base"
+    SEGMENT: "east"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: always
+
+preprod-east-ext-plan:
+  extends: .plan
+  stage: merge_request
+  variables:
+    ENVIRONMENT: "commons-preprod"
+    MODULE: "ext"
+    SEGMENT: "east"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: always
+
+preprod-west-base-plan:
+  extends: .plan
+  stage: merge_request
+  environment:
+    deployment_tier: development
+    name: commons-preprod-west-base
+    action: prepare
+  variables:
+    ENVIRONMENT: "commons-preprod"
+    MODULE: "base"
+    SEGMENT: "west"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: always
+
+preprod-west-ext-plan:
+  extends: .plan
+  stage: merge_request
+  variables:
+    ENVIRONMENT: "commons-preprod"
+    MODULE: "ext"
+    SEGMENT: "west"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: always
+
+prod-east-base-plan:
+  extends: .plan
+  stage: merge_request
+  environment:
+    deployment_tier: development
+    name: commons-prod-east-base
+    action: prepare
+  variables:
+    ENVIRONMENT: "commons-prod"
+    MODULE: "base"
+    SEGMENT: "east"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: always
+
+prod-east-ext-plan:
+  extends: .plan
+  stage: merge_request
+  variables:
+    ENVIRONMENT: "commons-prod"
+    MODULE: "ext"
+    SEGMENT: "east"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: always
+
+prod-west-base-plan:
+  extends: .plan
+  stage: merge_request
+  environment:
+    deployment_tier: development
+    name: commons-prod-west-base
+    action: prepare
+  variables:
+    ENVIRONMENT: "commons-prod"
+    MODULE: "base"
+    SEGMENT: "west"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: always
+
+prod-west-ext-plan:
+  extends: .plan
+  stage: merge_request
+  variables:
+    ENVIRONMENT: "commons-prod"
+    MODULE: "ext"
+    SEGMENT: "west"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: always
