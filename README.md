@@ -41,27 +41,6 @@ running the terraform-env directory, and look it up in Datadog.
         api_key: <DD_API_KEY>
         aws_integration_external_id: <DD_INTEGRATION_ID>
 
-  <ENVIRONMENT>/roach/connection_info
-        dbuser: <DB_USER>
-        dbpassword:	<DB_PASSWORD>
-        dbhost_port: <MOST_OF_HOST_URL>:<PORT>
-        dbcluster: <SUB_DOMAIN_OF_HOST_URL>
-        db_name: <DB_NAME>
-
-Regarding the host URL: it will take the form of
-
-    edbence-iam-prod-8380.7tt.cockroachlabs.cloud:26257
-
-Which results in:
-
-    dbhost_port: 7tt.cockroachlabs.cloud:26257
-    dbcluster: edbence-iam-prod-8380
-
-
-    <ENVIRONMENT>/roach/ssl_cert
-        This is the CA for Cockroach; it is provided with the cluster, and is
-        the same for all clusters.
-
 And in the appropriate region for each segment:
 
     <ENVIRONMENT>/<SEGMENT>/core
