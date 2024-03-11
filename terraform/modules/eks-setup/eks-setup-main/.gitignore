@@ -1,0 +1,54 @@
+# Local Terraform files and directories
+.terraform/
+**/.terraform/*
+.terraformrc
+terraform.rc
+
+## Terraform override files allow us to do local development with
+## different providers
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local kubeconfig files
+kubeconfig*
+
+terraform/plan.cache
+
+
+# Local SSH certificates?
+certs/*
+
+# Above this line, project-related ignores
+# ------------------------------------------
+# Below this line, developer-related ignores
+
+# Most developers use MacOS X
+.DS_Store
+
+# IntelliJ
+.idea
+*.iml
+
+# vim
+.*.swp
+
+# Note that developers can set global ignores for their specific environment and
+# setup, which will then apply to every git repository, without everyone having
+# to negotiate for their favorite exclusions. This also helps the .gitignore
+# file be informative and readable.
+#
+# First define your global gitignore file:
+#
+#    git config --global core.excludesFile ~/.gitignore
+#
+# Then add any lines you want to that file, such as:
+#
+#    .DS_Store
+#    .idea
+#
+# For example, I have this in my global .gitignore file:
+#
+#    .DS_Store
+#    .*.swp
