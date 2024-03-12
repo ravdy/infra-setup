@@ -1,4 +1,3 @@
-
 module "secrets" {
   source = "../segment-secrets"
   environment     = var.environment
@@ -28,9 +27,9 @@ module "env-segment" {
   k8s_worker_version = var.k8s_version
   k8s_map_users = []
   vpc_number_of_azs = 3
-  k8s_worker_desired_size = var.k8s_worker_desired_size
-  k8s_worker_min_size = var.k8s_worker_desired_size
-  k8s_worker_instances_size = "r5a.large"
+  k8s_worker_desired_size = 1
+  k8s_worker_min_size = 1
+  k8s_worker_instances_size = "t2.micro"
   vpc_nat_gateway_multiaz = true
   k8s_aws_auth_accounts = [ module.secrets.aws_account_id ]
   
@@ -46,9 +45,3 @@ resource "local_file" "aws-auth" {
   filename = "aws-auth.yaml"
   content = module.env-segment.aws_auth_configmap_yaml
 }
-
-
-
-
-
-
