@@ -13,7 +13,7 @@
   tasks:
     - name: "Ensure state store s3 bucket for ENVIRONMENT state"
       amazon.aws.s3_bucket:
-        name: "xpansiv-{{env}}-terraform-infra-state"
+        name: "edbence-{{env}}-terraform-infra-state"
         region: "us-east-1"
         versioning: true
         state: present
@@ -26,7 +26,7 @@
 
     - name: "Ensure segment specific s3 buckets for state storage"
       amazon.aws.s3_bucket:
-        name: "xpansiv-{{env}}-{{segment.name}}-terraform-infra-state"
+        name: "edbence-{{env}}-{{segment.name}}-terraform-infra-state"
         region: "{{segment.region}}"
         versioning: true
         state: present
